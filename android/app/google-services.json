@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "17204905981",
+    "project_id": "zimmet-takip-9ece5",
+    "storage_bucket": "zimmet-takip-9ece5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:17204905981:android:3efd606248fb55d6103b94",
+        "android_client_info": {
+          "package_name": "com.example.zimmet_takip"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMdiMX_oUCSYRoaMkonav8asxEap4eljY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
