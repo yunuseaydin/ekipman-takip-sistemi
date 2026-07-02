@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dashboard_screen.dart';
+import 'dashboard_screen.dart'; // Admin Dashboard
+import 'user_dashboard_screen.dart'; // Personel Dashboard
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,23 +23,27 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
+      String inputEmail = _emailController.text.trim().toLowerCase();
+
+      // Sarı uyarı veren değişkeni sildik, sadece işlemi yaptırıyoruz
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: inputEmail,
+        password: _passwordController.text.trim(),
+      );
 
       if (!mounted) return;
 
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(userCredential.user!.uid)
+          .doc(inputEmail)
           .get();
 
       if (!mounted) return;
 
       if (userDoc.exists) {
         String name = userDoc['name'] ?? 'Kullanıcı';
+        // Firestore'dan rolü çekiyoruz
+        String userRole = userDoc['role'] ?? 'staff';
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -52,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.green.withValues(alpha: 0.4), // Güncellendi
+                    color: Colors.green.withValues(alpha: 0.4),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   ),
@@ -86,11 +91,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
-        );
+        // --- ROL KONTROLÜ VE YÖNLENDİRME ---
+        if (userRole == 'admin') {
+          // Admin yetkisi varsa ana panele uçur
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          );
+        } else {
+          // Admin değilse (personelse) kısıtlı panele uçur
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const UserDashboardScreen(),
+            ),
+          );
+        }
         return;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Kullanıcı verisi bulunamadı!")),
+        );
       }
     } on FirebaseAuthException {
       if (!mounted) return;
@@ -107,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.redAccent.withValues(alpha: 0.4), // Güncellendi
+                  color: Colors.redAccent.withValues(alpha: 0.4),
                   blurRadius: 10,
                   offset: const Offset(0, 5),
                 ),
@@ -163,7 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2), // Güncellendi
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),

@@ -1,5 +1,8 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../services/logger_service.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -41,19 +44,36 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
 
     String phone = _phoneController.text.trim();
-    if (phone.length < 4) {
+    if (phone.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Geçerli bir telefon numarası girin!")),
+        const SnackBar(
+          content: Text(
+            "Geçerli ve en az 6 haneli bir telefon numarası girin!",
+          ),
+        ),
       );
       return;
     }
 
     String userEmail = _emailController.text.trim().toLowerCase();
-
     setState(() => _isLoading = true);
 
     try {
-      String tempPassword = phone.substring(phone.length - 4);
+      String tempPassword = phone.substring(phone.length - 6);
+
+      FirebaseApp secondaryApp = await Firebase.initializeApp(
+        name: 'SecondaryApp',
+        options: Firebase.app().options,
+      );
+
+      await FirebaseAuth.instanceFor(
+        app: secondaryApp,
+      ).createUserWithEmailAndPassword(
+        email: userEmail,
+        password: tempPassword,
+      );
+
+      await secondaryApp.delete();
 
       await FirebaseFirestore.instance.collection('users').doc(userEmail).set({
         'name': _nameController.text.trim(),
@@ -73,27 +93,29 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         type: 'user_add',
       );
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.green.shade600,
-            content: Text("Kullanıcı eklendi! Geçici Şifre: $tempPassword"),
-          ),
-        );
-        _nameController.clear();
-        _surnameController.clear();
-        _emailController.clear();
-        _phoneController.clear();
-      }
+      if (!mounted) return;
+
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green.shade600,
+          content: Text("Kullanıcı eklendi! Şifre: $tempPassword"),
+        ),
+      );
+      _nameController.clear();
+      _surnameController.clear();
+      _emailController.clear();
+      _phoneController.clear();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Hata oluştu: $e")));
-      }
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Auth/Firestore Hatası: $e")));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -109,12 +131,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text("Emin misiniz?"),
         content: Text(content),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text("Vazgeç"),
           ),
           ElevatedButton(
@@ -124,14 +146,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   : Colors.green,
             ),
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
 
               await FirebaseFirestore.instance
                   .collection('users')
                   .doc(docId)
                   .update({'role': currentAdminStatus ? 'staff' : 'admin'});
 
-              // --- LOG EKLEME KISMI ---
               await LoggerService.logAction(
                 title: currentAdminStatus
                     ? "Yetki Alındı"
@@ -142,17 +163,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 type: 'user_role',
               );
 
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      currentAdminStatus
-                          ? "$fullName artık standart kullanıcı."
-                          : "$fullName artık Admin!",
-                    ),
+              if (!mounted) return;
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    currentAdminStatus
+                        ? "$fullName artık standart kullanıcı."
+                        : "$fullName artık Admin!",
                   ),
-                );
-              }
+                ),
+              );
             },
             child: Text(title, style: const TextStyle(color: Colors.white)),
           ),
@@ -164,27 +185,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void _confirmRemoveUser(String docId, String fullName) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text("Emin misiniz?"),
         content: Text(
           "$fullName adlı kullanıcıyı sistemden kalıcı olarak çıkarmak istediğinize emin misiniz?",
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text("Vazgeç"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
 
               await FirebaseFirestore.instance
                   .collection('users')
                   .doc(docId)
                   .delete();
 
-              // --- LOG EKLEME KISMI ---
               await LoggerService.logAction(
                 title: "Kullanıcı Silindi",
                 detail:
@@ -192,13 +212,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 type: 'user_remove',
               );
 
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Kullanıcı sistemden çıkarıldı."),
-                  ),
-                );
-              }
+              if (!mounted) return;
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Kullanıcı sistemden çıkarıldı.")),
+              );
             },
             child: const Text(
               "Evet, Çıkar",
@@ -217,10 +235,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
             left: 24,
             right: 24,
             top: 24,
