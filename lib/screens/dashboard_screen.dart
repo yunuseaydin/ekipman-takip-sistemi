@@ -6,6 +6,7 @@ import 'equipment_management_screen.dart';
 import 'equipments_screen.dart';
 import 'user_management_screen.dart';
 import 'history_screen.dart';
+import 'user_dashboard_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -167,7 +168,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                             );
                           } else {
-                            //TOD0: Personel ekipmanları sayfası eklenecek
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const UserDashboardScreen(),
+                              ),
+                            );
                           }
                         },
                       ),
