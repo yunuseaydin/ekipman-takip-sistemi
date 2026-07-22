@@ -1,9 +1,8 @@
 // ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import '../services/logger_service.dart';
+import 'user_detail_screen.dart';
+import 'add_user_screen.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -15,437 +14,402 @@ class UserManagementScreen extends StatefulWidget {
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchText = "";
-
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _surnameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  bool _isLoading = false;
+  int _selectedTab = 1; // 1: Onaylılar, 2: Onay Bekleyenler
 
   @override
   void dispose() {
     _searchController.dispose();
-    _nameController.dispose();
-    _surnameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
     super.dispose();
   }
 
-  Future<void> _saveUser() async {
-    if (_nameController.text.trim().isEmpty ||
-        _surnameController.text.trim().isEmpty ||
-        _emailController.text.trim().isEmpty ||
-        _phoneController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Lütfen tüm alanları doldurun!")),
-      );
-      return;
-    }
+  // Admin role toggle and remove user logic moved to UserDetailScreen
+  // Add user logic moved to AddUserScreen
 
-    String phone = _phoneController.text.trim();
-    if (phone.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Geçerli ve en az 6 haneli bir telefon numarası girin!",
-          ),
-        ),
-      );
-      return;
-    }
-
-    String userEmail = _emailController.text.trim().toLowerCase();
-    setState(() => _isLoading = true);
-
-    try {
-      String tempPassword = phone.substring(phone.length - 6);
-
-      FirebaseApp secondaryApp = await Firebase.initializeApp(
-        name: 'SecondaryApp',
-        options: Firebase.app().options,
-      );
-
-      await FirebaseAuth.instanceFor(
-        app: secondaryApp,
-      ).createUserWithEmailAndPassword(
-        email: userEmail,
-        password: tempPassword,
-      );
-
-      await secondaryApp.delete();
-
-      await FirebaseFirestore.instance.collection('users').doc(userEmail).set({
-        'name': _nameController.text.trim(),
-        'surname': _surnameController.text.trim(),
-        'search_name': _nameController.text.trim().toLowerCase(),
-        'email': userEmail,
-        'phone': phone,
-        'password': tempPassword,
-        'role': 'staff',
-        'created_at': FieldValue.serverTimestamp(),
-      });
-
-      await LoggerService.logAction(
-        title: "Kullanıcı Eklendi",
-        detail:
-            "Admin, '${_nameController.text.trim()} ${_surnameController.text.trim()}' kişisini sisteme ekledi.",
-        type: 'user_add',
-      );
-
-      if (!mounted) return;
-
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.green.shade600,
-          content: Text("Kullanıcı eklendi! Şifre: $tempPassword"),
-        ),
-      );
-      _nameController.clear();
-      _surnameController.clear();
-      _emailController.clear();
-      _phoneController.clear();
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Auth/Firestore Hatası: $e")));
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _toggleAdminRole(
-    String docId,
-    String fullName,
-    bool currentAdminStatus,
-  ) {
-    String title = currentAdminStatus ? "Yetkiyi Al" : "Admin Yap";
-    String content = currentAdminStatus
-        ? "$fullName adlı kullanıcının Admin yetkisini almak istediğinize emin misiniz?"
-        : "$fullName adlı kullanıcıya Admin yetkisi vermek istediğinize emin misiniz?";
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Emin misiniz?"),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Vazgeç"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: currentAdminStatus
-                  ? Colors.orange
-                  : Colors.green,
+  Widget _buildDashboardCard({
+    required BuildContext context,
+    required String title,
+    required String count,
+    required IconData icon,
+    required List<Color> gradientColors,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isSelected
+                  ? gradientColors
+                  : [
+                      Theme.of(context).cardColor,
+                      Theme.of(context).cardColor,
+                    ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(docId)
-                  .update({'role': currentAdminStatus ? 'staff' : 'admin'});
-
-              await LoggerService.logAction(
-                title: currentAdminStatus
-                    ? "Yetki Alındı"
-                    : "Admin Yetkisi Verildi",
-                detail: currentAdminStatus
-                    ? "Admin, '$fullName' adlı kullanıcının admin yetkisini aldı."
-                    : "Admin, '$fullName' adlı kullanıcıya admin yetkisi verdi.",
-                type: 'user_role',
-              );
-
-              if (!mounted) return;
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    currentAdminStatus
-                        ? "$fullName artık standart kullanıcı."
-                        : "$fullName artık Admin!",
-                  ),
-                ),
-              );
-            },
-            child: Text(title, style: const TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmRemoveUser(String docId, String fullName) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Emin misiniz?"),
-        content: Text(
-          "$fullName adlı kullanıcıyı sistemden kalıcı olarak çıkarmak istediğinize emin misiniz?",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Vazgeç"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(docId)
-                  .delete();
-
-              await LoggerService.logAction(
-                title: "Kullanıcı Silindi",
-                detail:
-                    "Admin, '$fullName' adlı kullanıcıyı sistemden çıkardı.",
-                type: 'user_remove',
-              );
-
-              if (!mounted) return;
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Kullanıcı sistemden çıkarıldı.")),
-              );
-            },
-            child: const Text(
-              "Evet, Çıkar",
-              style: TextStyle(color: Colors.white),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? Colors.transparent : Colors.grey.withValues(alpha: 0.2),
+              width: 1,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddUserSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
-            left: 24,
-            right: 24,
-            top: 24,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Yeni Kullanıcı Ekle",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: "İsim",
-                    prefixIcon: Icon(Icons.person),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _surnameController,
-                  decoration: const InputDecoration(
-                    labelText: "Soyisim",
-                    prefixIcon: Icon(Icons.person_outline),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: "E-posta Adresi",
-                    prefixIcon: Icon(Icons.email_rounded),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: "Telefon Numarası",
-                    prefixIcon: Icon(Icons.phone),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey.shade800,
-                      foregroundColor: Colors.white,
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: gradientColors.last.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
                     ),
-                    onPressed: _isLoading ? null : _saveUser,
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text("Sisteme Kaydet"),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-            ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
-        );
-      },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: isSelected
+                    ? Colors.white
+                    : (Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade400 : Colors.blueGrey.shade600),
+                size: 28,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                count,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: isSelected
+                      ? Colors.white
+                      : (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.blueGrey.shade900),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.9)
+                      : (Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade500 : Colors.blueGrey.shade500),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      appBar: AppBar(
-        title: const Text("Kullanıcılar"),
-        backgroundColor: Colors.blueGrey.shade900,
-        foregroundColor: Colors.white,
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() {
-                  _searchText = value.toLowerCase();
-                });
-              },
-              decoration: InputDecoration(
-                hintText: "İsim ile kullanıcı ara...",
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .orderBy('created_at', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.grey.shade50,
+      body: SafeArea(
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .orderBy('created_at', descending: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            
+            int approvedUsers = 0;
+            int pendingUsers = 0;
+            
+            if (snapshot.hasData) {
+              for (var doc in snapshot.data!.docs) {
+                var data = doc.data() as Map<String, dynamic>;
+                if (data['status'] == 'onay_bekliyor') {
+                  pendingUsers++;
+                } else {
+                  approvedUsers++;
                 }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text("Sistemde kayıtlı kullanıcı yok."),
-                  );
-                }
+              }
+            }
 
-                var users = snapshot.data!.docs.where((doc) {
-                  var data = doc.data() as Map<String, dynamic>;
-                  String searchName = data['search_name'] ?? "";
-                  return searchName.contains(_searchText);
-                }).toList();
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: users.length,
-                  itemBuilder: (context, index) {
-                    var data = users[index].data() as Map<String, dynamic>;
-                    String docId = users[index].id;
-
-                    String name = data['name'] ?? "";
-                    String surname = data['surname'] ?? "";
-                    String fullName = "$name $surname".trim();
-                    if (fullName.isEmpty) fullName = "İsimsiz Kullanıcı";
-
-                    bool isAdmin = data['role'] == 'admin';
-                    String email = data['email'] ?? "E-posta yok";
-
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+            return Column(
+              children: [
+                // Premium Compact Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(32),
+                      bottomRight: Radius.circular(32),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: isAdmin
-                              ? Colors.amber
-                              : Colors.blueGrey,
-                          child: Icon(
-                            isAdmin ? Icons.admin_panel_settings : Icons.person,
-                            color: Colors.white,
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => Navigator.pop(context),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: isDark ? Colors.blueGrey.shade800 : Colors.blueGrey.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white : Colors.blueGrey.shade800, size: 18),
+                              ),
+                            ),
                           ),
-                        ),
-                        title: Text(
-                          fullName,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text("$email\n${data['phone'] ?? ''}"),
-                        isThreeLine: true,
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                Icons.admin_panel_settings,
-                                color: isAdmin
-                                    ? Colors.amber.shade700
-                                    : Colors.grey.shade400,
-                              ),
-                              tooltip: isAdmin
-                                  ? "Admin Yetkisini Al"
-                                  : "Admin Yap",
-                              onPressed: () =>
-                                  _toggleAdminRole(docId, fullName, isAdmin),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Kullanıcılar",
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    color: isDark ? Colors.white : Colors.blueGrey.shade900,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "Personel Yönetimi",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark ? Colors.blueGrey.shade400 : Colors.blueGrey.shade500,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.red,
-                              ),
-                              tooltip: "Sistemden Çıkar",
-                              onPressed: () =>
-                                  _confirmRemoveUser(docId, fullName),
-                            ),
-                          ],
-                        ),
+                          ),
+                          Image.asset(
+                            'assets/images/logo.png',
+                            width: 80,
+                            fit: BoxFit.contain,
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          _buildDashboardCard(
+                            context: context,
+                            title: "ONAYLILAR",
+                            count: approvedUsers.toString(),
+                            icon: Icons.verified_user_rounded,
+                            gradientColors: [Colors.green.shade400, Colors.teal.shade700],
+                            isSelected: _selectedTab == 1,
+                            onTap: () => setState(() => _selectedTab = 1),
+                          ),
+                          _buildDashboardCard(
+                            context: context,
+                            title: "BEKLEYENLER",
+                            count: pendingUsers.toString(),
+                            icon: Icons.pending_actions_rounded,
+                            gradientColors: [Colors.orange.shade400, Colors.deepOrange.shade600],
+                            isSelected: _selectedTab == 2,
+                            onTap: () => setState(() => _selectedTab = 2),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Search Bar
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchText = value.toLowerCase();
+                      });
+                    },
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                    decoration: InputDecoration(
+                      hintText: "İsim ile kullanıcı ara...",
+                      hintStyle: TextStyle(color: isDark ? Colors.blueGrey.shade400 : Colors.blueGrey.shade400),
+                      prefixIcon: Icon(Icons.search, color: isDark ? Colors.blueGrey.shade300 : Colors.blueGrey.shade400),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                    ),
+                  ),
+                ),
+
+                // List Area
+                Expanded(
+                  child: Builder(
+                    builder: (context) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.people_outline, size: 64, color: isDark ? Colors.blueGrey.shade700 : Colors.grey.shade300),
+                              const SizedBox(height: 16),
+                              Text(
+                                "Sistemde kayıtlı kullanıcı yok",
+                                style: TextStyle(
+                                  color: isDark ? Colors.blueGrey.shade400 : Colors.blueGrey.shade600,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      var users = snapshot.data!.docs.where((doc) {
+                        var data = doc.data() as Map<String, dynamic>;
+                        String searchName = data['search_name'] ?? "";
+                        String status = data['status'] ?? "onayli"; // default
+                        
+                        bool matchesSearch = searchName.contains(_searchText);
+                        bool matchesTab = false;
+                        
+                        if (_selectedTab == 0) {
+                          matchesTab = true; // Tüm
+                        } else if (_selectedTab == 1) {
+                          matchesTab = status == 'onayli' || status != 'onay_bekliyor'; // Onaylılar
+                        } else if (_selectedTab == 2) {
+                          matchesTab = status == 'onay_bekliyor'; // Bekleyenler
+                        }
+
+                        return matchesSearch && matchesTab;
+                      }).toList();
+
+                      return ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        itemCount: users.length,
+                        itemBuilder: (context, index) {
+                          var data = users[index].data() as Map<String, dynamic>;
+                          String docId = users[index].id;
+
+                          String name = data['name'] ?? "";
+                          String surname = data['surname'] ?? "";
+                          String fullName = "$name $surname".trim();
+                          if (fullName.isEmpty) fullName = "İsimsiz Kullanıcı";
+
+                          bool isAdmin = data['role'] == 'admin';
+                          String email = data['email'] ?? "E-posta yok";
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200,
+                                width: 1,
+                              ),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => UserDetailScreen(
+                                    docId: docId,
+                                    fullName: fullName,
+                                    email: email,
+                                  ),
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 24,
+                                      backgroundColor: isAdmin ? Colors.orange.withValues(alpha: 0.15) : Colors.blue.withValues(alpha: 0.15),
+                                      child: Icon(
+                                        isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
+                                        color: isAdmin ? Colors.orange.shade600 : Colors.blue.shade600,
+                                        size: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            fullName,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: isDark ? Colors.white : Colors.blueGrey.shade900,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            isAdmin ? "Yönetici" : "Personel",
+                                            style: TextStyle(
+                                              color: isAdmin ? Colors.orange.shade400 : (isDark ? Colors.blueGrey.shade300 : Colors.blueGrey.shade500),
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white54 : Colors.black26),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddUserSheet,
-        backgroundColor: Colors.blueGrey.shade800,
-        icon: const Icon(Icons.person_add, color: Colors.white),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddUserScreen())),
+        backgroundColor: isDark ? Colors.blue.shade600 : Colors.blue.shade700,
+        elevation: 4,
+        icon: const Icon(Icons.person_add_rounded, color: Colors.white),
         label: const Text(
-          "Kullanıcı Ekle",
-          style: TextStyle(color: Colors.white),
+          "Yeni Kullanıcı",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
     );

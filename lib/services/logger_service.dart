@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:developer';
 
 class LoggerService {
   static Future<void> logAction({
@@ -45,7 +46,7 @@ class LoggerService {
         }
       }
     } catch (e) {
-      print("İşlemi yapan kişi çekilemedi: $e");
+      log("İşlemi yapan kişi çekilemedi: $e");
     }
 
     String temizDetail = detail

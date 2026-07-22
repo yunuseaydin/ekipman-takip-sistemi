@@ -42,14 +42,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           "İşlem Geçmişi",
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        backgroundColor: Colors.blueGrey.shade900,
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.blueGrey.shade900,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -88,8 +89,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   .orderBy('timestamp', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting)
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
+                }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
                     child: Column(
@@ -148,7 +150,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     String type = data['type'] ?? 'unknown';
                     String actionBy =
                         data['action_by'] ??
-                        'Sistem Yöneticisi'; // Eski loglar hata vermesin diye varsayılan ekledik
+                        'Sistem Yöneticisi'; 
 
                     var style = _getIconStyleForAction(type);
                     Color iconColor = style['color'];
@@ -164,12 +166,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Colors.grey.shade200),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.02),
+                            color: Colors.black.withValues(alpha: 0.02),
                             blurRadius: 8,
                             offset: const Offset(0, 4),
                           ),
@@ -185,7 +187,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: iconColor.withOpacity(0.1),
+                                    color: iconColor.withValues(alpha: 0.1),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
@@ -201,7 +203,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
-                                      color: Colors.blueGrey.shade800,
+                                      color: isDark ? Colors.white : Colors.blueGrey.shade900,
                                     ),
                                   ),
                                 ),
@@ -221,7 +223,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  "İşlemi Yapan: $actionBy",
+                                  "Ä°ÅŸlemi Yapan: $actionBy",
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.blueGrey.shade700,
@@ -288,3 +290,4 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 }
+
