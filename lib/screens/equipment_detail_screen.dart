@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../services/logger_service.dart';
 
 class EquipmentDetailScreen extends StatefulWidget {
   final String equipmentId;
+  final bool isAdmin;
 
-  const EquipmentDetailScreen({super.key, required this.equipmentId});
+  const EquipmentDetailScreen({
+    super.key,
+    required this.equipmentId,
+    this.isAdmin = false,
+  });
 
   @override
   State<EquipmentDetailScreen> createState() => _EquipmentDetailScreenState();
@@ -35,15 +41,6 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
     }
   }
 
-  IconData _getCategoryIcon(String category) {
-    if (category.toLowerCase().contains("bilgisayar") || category.toLowerCase().contains("laptop")) return Icons.laptop_mac_rounded;
-    if (category.toLowerCase().contains("telefon") || category.toLowerCase().contains("tablet")) return Icons.phone_iphone_rounded;
-    if (category.toLowerCase().contains("kamera") || category.toLowerCase().contains("fotoğraf")) return Icons.camera_alt_rounded;
-    if (category.toLowerCase().contains("yazıcı") || category.toLowerCase().contains("tarayıcı")) return Icons.print_rounded;
-    if (category.toLowerCase().contains("ağ") || category.toLowerCase().contains("güvenlik")) return Icons.router_rounded;
-    return Icons.devices_other_rounded;
-  }
-
   String _formatDate(dynamic timestamp) {
     if (timestamp == null) return "Bilinmiyor";
     if (timestamp is Timestamp) {
@@ -56,39 +53,91 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
   Widget build(BuildContext context) {
     bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('equipment').doc(widget.equipmentId).snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return Center(
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('equipment').doc(widget.equipmentId).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            body: Center(
               child: Text(
                 "Ekipman bulunamadı.",
                 style: TextStyle(color: isDark ? Colors.white : Colors.black),
               ),
-            );
-          }
+            ),
+          );
+        }
 
-          var data = snapshot.data!.data() as Map<String, dynamic>;
-          String brand = data['brand'] ?? 'Bilinmiyor';
-          String model = data['model'] ?? 'Bilinmiyor';
-          String type = data['type'] ?? 'Bilinmiyor';
-          String category = data['category'] ?? 'Diğer';
-          String status = data['status'] ?? 'Bilinmiyor';
-          String assignedTo = data['assigned_to'] ?? '';
-          dynamic assignedDate = data['assigned_date'];
-          
-          bool isAvailable = status == 'Mevcut';
+        var data = snapshot.data!.data() as Map<String, dynamic>;
+        String brand = data['brand'] ?? 'Bilinmiyor';
+        String model = data['model'] ?? 'Bilinmiyor';
+        String type = data['type'] ?? 'Bilinmiyor';
+        String category = data['category'] ?? 'Diğer';
+        String status = data['status'] ?? 'Bilinmiyor';
+        String assignedTo = data['assigned_to'] ?? '';
+        dynamic assignedDate = data['assigned_date'];
+        
+        bool isAvailable = status == 'Mevcut';
 
-          return CustomScrollView(
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+          bottomNavigationBar: widget.isAdmin ? Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: Colors.blue.shade600),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        foregroundColor: Colors.blue.shade600,
+                      ),
+                      icon: const Icon(Icons.edit_rounded),
+                      label: const Text("Düzenle", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      onPressed: () => _showEditDialog(data),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: Colors.redAccent),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        foregroundColor: Colors.redAccent,
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      label: const Text("Sil", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      onPressed: _confirmDelete,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ) : null,
+          body: CustomScrollView(
             slivers: [
               // Hero AppBar
               SliverAppBar(
-                expandedHeight: 280.0,
+                expandedHeight: 180.0,
                 pinned: true,
                 backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.blueGrey.shade900,
                 elevation: 0,
@@ -136,24 +185,10 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const SizedBox(height: 20),
-                            Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 2),
-                              ),
-                              child: Icon(
-                                _getCategoryIcon(category),
-                                size: 64,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
                             Text(
                               "$brand $model",
                               style: const TextStyle(
-                                fontSize: 26,
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
@@ -225,9 +260,9 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -518,5 +553,282 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
         );
       },
     );
+  } // build metodu sonu
+
+  final List<String> _categories = [
+    'Bilgisayar',
+    'Telefon/Tablet',
+    'Yazıcı/Tarayıcı',
+    'Ağ/Güvenlik',
+    'Kamera/Fotoğraf',
+    'Aksesuar',
+    'Diğer'
+  ];
+
+  void _confirmDelete() {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red.shade400, size: 28),
+              const SizedBox(width: 8),
+              Text(
+                'Ekipmanı Sil',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.blueGrey.shade900,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            '${widget.equipmentId} kodlu ekipmanı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.',
+            style: TextStyle(
+              color: isDark ? Colors.blueGrey.shade300 : Colors.blueGrey.shade700,
+              fontSize: 16,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                'İptal',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text(
+                'Sil',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () async {
+                Navigator.of(context).pop(); // dialog kapat
+                
+                await FirebaseFirestore.instance
+                    .collection('equipment')
+                    .doc(widget.equipmentId)
+                    .delete();
+
+                await LoggerService.logAction(
+                  title: "Ekipman Silindi",
+                  detail: "Admin, '${widget.equipmentId}' kodlu ekipmanı sistemden sildi.",
+                  type: 'eq_remove',
+                );
+
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: Colors.redAccent,
+                    content: Text(
+                      "Ekipman başarıyla silindi!",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                );
+                Navigator.of(context).pop(); // detay ekranını kapat
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showEditDialog(Map<String, dynamic> currentData) async {
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final typeController = TextEditingController(text: currentData['type']?.toString() ?? '');
+    final brandController = TextEditingController(text: currentData['brand']?.toString() ?? '');
+    final modelController = TextEditingController(text: currentData['model']?.toString() ?? '');
+    String? selectedCategory = currentData['category']?.toString();
+
+    final List<String> categories = List.from(_categories);
+    if (selectedCategory != null && !categories.contains(selectedCategory)) {
+      categories.add(selectedCategory);
+    }
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.edit_note_rounded,
+                    color: isDark ? Colors.white : Colors.blueGrey.shade800,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${widget.equipmentId} Düzenle',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.blueGrey.shade900,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDropdown(
+                      label: "Kategori",
+                      value: selectedCategory,
+                      items: categories,
+                      isDark: isDark,
+                      onChanged: (String? newValue) {
+                        setDialogState(() {
+                          selectedCategory = newValue;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildDialogTextField(typeController, "Cihaz Türü", isDark),
+                    const SizedBox(height: 16),
+                    _buildDialogTextField(brandController, "Marka", isDark),
+                    const SizedBox(height: 16),
+                    _buildDialogTextField(modelController, "Model", isDark),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text(
+                    'İptal',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () async {
+                    await FirebaseFirestore.instance
+                        .collection('equipment')
+                        .doc(widget.equipmentId)
+                        .update({
+                      'type': typeController.text.trim(),
+                      'brand': brandController.text.trim(),
+                      'model': modelController.text.trim(),
+                      'category': selectedCategory,
+                    });
+
+                    await LoggerService.logAction(
+                      title: "Ekipman Düzenlendi",
+                      detail:
+                          "Admin, '${widget.equipmentId}' kodlu ekipmanın bilgilerini güncelledi.",
+                      type: 'eq_edit',
+                    );
+
+                    if (!context.mounted) return;
+                    Navigator.of(context).pop();
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        behavior: SnackBarBehavior.floating,
+                        backgroundColor: Colors.green.shade600,
+                        content: const Text(
+                          "Ekipman başarıyla güncellendi!",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    'Kaydet',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDialogTextField(TextEditingController controller, String label, bool isDark, {IconData? icon}) {
+    return TextField(
+      controller: controller,
+      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: isDark ? Colors.blueGrey.shade400 : Colors.blueGrey.shade600),
+        prefixIcon: icon != null ? Icon(icon, color: isDark ? Colors.blueGrey.shade400 : Colors.blueGrey.shade500) : null,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        filled: true,
+        fillColor: isDark ? const Color(0xFF0F172A) : Colors.blueGrey.shade50.withValues(alpha: 0.5),
+      ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String? value,
+    required List<String> items,
+    required bool isDark,
+    required Function(String?) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: isDark ? Colors.blueGrey.shade400 : Colors.blueGrey.shade600),
+        prefixIcon: Icon(Icons.category_rounded, color: isDark ? Colors.blueGrey.shade400 : Colors.blueGrey.shade500),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        filled: true,
+        fillColor: isDark ? const Color(0xFF0F172A) : Colors.blueGrey.shade50.withValues(alpha: 0.5),
+      ),
+      items: items
+          .map(
+            (String category) => DropdownMenuItem(
+              value: category,
+              child: Text(category),
+            ),
+          )
+          .toList(),
+      onChanged: onChanged,
+    );
   }
 }
+

@@ -806,7 +806,10 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => EquipmentDetailScreen(equipmentId: docId),
+                                      builder: (context) => EquipmentDetailScreen(
+                                        equipmentId: docId,
+                                        isAdmin: true,
+                                      ),
                                     ),
                                   );
                                 },

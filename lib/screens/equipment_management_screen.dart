@@ -119,218 +119,6 @@ class _EquipmentManagementScreenState extends State<EquipmentManagementScreen> {
     }
   }
 
-  Future<void> _confirmDelete(String docId) async {
-    bool isDark = Theme.of(context).brightness == Brightness.dark;
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Text(
-            'Ekipmanı Sil',
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.blueGrey.shade900,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Text(
-            'Bu ekipmanı sistemden tamamen silmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
-            style: TextStyle(
-              color: isDark ? Colors.blueGrey.shade300 : Colors.blueGrey.shade700,
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text(
-                'Vazgeç',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text(
-                'Sil',
-                style: TextStyle(
-                  color: Colors.redAccent,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onPressed: () async {
-                Navigator.of(context).pop();
-
-                await FirebaseFirestore.instance
-                    .collection('equipment')
-                    .doc(docId)
-                    .delete();
-
-                await LoggerService.logAction(
-                  title: "Ekipman Silindi",
-                  detail: "Admin, '$docId' kodlu ekipmanı sistemden sildi.",
-                  type: 'eq_remove',
-                );
-
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: Colors.redAccent,
-                    content: Text(
-                      "Ekipman başarıyla silindi!",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _showEditDialog(
-    String docId,
-    Map<String, dynamic> currentData,
-  ) async {
-    bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final typeController = TextEditingController(text: currentData['type']);
-    final brandController = TextEditingController(text: currentData['brand']);
-    final modelController = TextEditingController(text: currentData['model']);
-    String? selectedCategory = currentData['category'];
-
-    final List<String> categories = List.from(_categories);
-    if (selectedCategory != null && !categories.contains(selectedCategory)) {
-      categories.add(selectedCategory);
-    }
-
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: Row(
-                children: [
-                  Icon(
-                    Icons.edit_note_rounded,
-                    color: isDark ? Colors.white : Colors.blueGrey.shade800,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$docId Düzenle',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.blueGrey.shade900,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildDropdown(
-                      label: "Kategori",
-                      value: selectedCategory,
-                      items: categories,
-                      isDark: isDark,
-                      onChanged: (String? newValue) {
-                        setDialogState(() {
-                          selectedCategory = newValue;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildDialogTextField(typeController, "Cihaz Türü", isDark),
-                    const SizedBox(height: 16),
-                    _buildDialogTextField(brandController, "Marka", isDark),
-                    const SizedBox(height: 16),
-                    _buildDialogTextField(modelController, "Model", isDark),
-                  ],
-                ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text(
-                    'İptal',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal.shade600,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () async {
-                    await FirebaseFirestore.instance
-                        .collection('equipment')
-                        .doc(docId)
-                        .update({
-                      'type': typeController.text.trim(),
-                      'brand': brandController.text.trim(),
-                      'model': modelController.text.trim(),
-                      'category': selectedCategory,
-                    });
-
-                    await LoggerService.logAction(
-                      title: "Ekipman Düzenlendi",
-                      detail:
-                          "Admin, '$docId' kodlu ekipmanın bilgilerini güncelledi.",
-                      type: 'eq_edit',
-                    );
-
-                    if (!context.mounted) return;
-                    Navigator.of(context).pop();
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        behavior: SnackBarBehavior.floating,
-                        backgroundColor: Colors.green.shade600,
-                        content: const Text(
-                          "Ekipman başarıyla güncellendi!",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'Kaydet',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   void _showAddBottomSheet() {
     bool isDark = Theme.of(context).brightness == Brightness.dark;
     _resetForm();
@@ -723,7 +511,10 @@ class _EquipmentManagementScreenState extends State<EquipmentManagementScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => EquipmentDetailScreen(equipmentId: doc.id),
+                                  builder: (context) => EquipmentDetailScreen(
+                                    equipmentId: doc.id,
+                                    isAdmin: true,
+                                  ),
                                 ),
                               );
                             },
@@ -803,16 +594,6 @@ class _EquipmentManagementScreenState extends State<EquipmentManagementScreen> {
                               ),
                               Column(
                                 children: [
-                                  IconButton(
-                                    icon: Icon(Icons.edit_rounded, color: isDark ? Colors.blue.shade300 : Colors.blue.shade600),
-                                    onPressed: () => _showEditDialog(doc.id, data),
-                                    tooltip: 'Düzenle',
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.delete_outline_rounded, color: isDark ? Colors.red.shade300 : Colors.red.shade600),
-                                    onPressed: () => _confirmDelete(doc.id),
-                                    tooltip: 'Sil',
-                                  ),
                                   Icon(Icons.chevron_right_rounded, color: isDark ? Colors.blueGrey.shade600 : Colors.blueGrey.shade300),
                                 ],
                               ),
